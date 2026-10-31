@@ -35,10 +35,15 @@ This small dylib patches Terminal.app but must make a copy, swizzle and re-sign,
 curl -fsSL https://github.com/khatiba/terminl/releases/latest/download/install.sh | sh
 ```
 
-Uninstall: `curl -fsSL https://github.com/khatiba/terminl/releases/latest/download/install.sh | sh -s -- --uninstall`
-
 > [!NOTE]
 > Terminl.app keeps the stock bundle identifier (`com.apple.Terminal`), so it shares preferences with Terminal.app. Your profiles, themes, fonts and settings carry over, and any changes you make in one show up in the other.
+
+
+##### Uninstall
+
+```sh
+curl -fsSL https://github.com/khatiba/terminl/releases/latest/download/install.sh | sh -s -- --uninstall
+```
 
 ## Requirements to Build
 

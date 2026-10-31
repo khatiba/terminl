@@ -1,9 +1,15 @@
-# Push a tag (git tag v1.0.0 && git push --tags) to build terminl.dylib and publish it with install.sh.
+# Push a tag (git tag v1.0.0 && git push --tags), or run manually from the Actions tab with a tag name,
+# to build terminl.dylib and publish it with install.sh.
 name: release
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0); created at the selected ref if it doesn't exist"
+        required: true
 
 permissions:
   contents: write
@@ -11,6 +17,8 @@ permissions:
 jobs:
   release:
     runs-on: macos-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -18,10 +26,10 @@ jobs:
 
       - name: Generate install.sh
         run: |
-          sed -e "s|__REPO__|$GITHUB_REPOSITORY|g" -e "s|__TAG__|$GITHUB_REF_NAME|g" scripts/install.sh > install.sh
+          sed -e "s|__REPO__|$GITHUB_REPOSITORY|g" -e "s|__TAG__|$TAG|g" scripts/install.sh > install.sh
           sh -n install.sh
 
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" terminl.dylib install.sh --generate-notes
+        run: gh release create "$TAG" terminl.dylib install.sh --generate-notes --target "$GITHUB_SHA"

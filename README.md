@@ -16,7 +16,7 @@ Dear Apple, since Tahoe, Terminal.app is near perfect, there are just a couple a
 
 ### 1. Chromeless titlebar
 
-The titlebar color is ugly and it's trivial now to make titlebar transparent so the window background shows through seamlessly.
+The stock titlebar color is ugly and it's trivial now to make titlebar transparent so the window background shows through seamlessly.
 
 ### 2. Tab bar in the titlebar
 

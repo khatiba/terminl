@@ -2,6 +2,8 @@
 
 Dear Apple, since Tahoe, Terminal.app is near perfect, there are just a couple annoyances that would make it just right. The code to fix them is tiny and the terminal interface is quickly becoming the new web browser of our age and Terminal.app has the potential to dominate.
 
+![Window sizing](https://akhatib.s3.us-west-2.amazonaws.com/assets/stock-window-sizing.gif)
+
 ### 1. Chromeless titlebar
 
 The titlebar color is ugly and it's trivial now to make titlebar transparent so the window background shows through seamlessly.
@@ -14,6 +16,11 @@ Vertical space is already scarce so just put the tabs in the titlebar. It's stil
 
 - Normally Terminal resizes the window when the tab bar appears or disappears and it's jarring, especially when the window is maximized.
 - Zoom (green button / double-click the titlebar) fills the whole visible screen, not a size rounded down to whole character cells which leaves a gap on the right and bottom.
+
+<p>
+  <img src="https://akhatib.s3.us-west-2.amazonaws.com/assets/stock-terminal.png" alt="Stock Terminal" width="49%">
+  <img src="https://akhatib.s3.us-west-2.amazonaws.com/assets/patched-terminal.png" alt="Patched Terminal" width="49%">
+</p>
 
 
 This small dylib patches Terminal.app but must make a copy, swizzle and re-sign, but other than that, it's stock Terminal.

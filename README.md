@@ -37,6 +37,9 @@ curl -fsSL https://github.com/khatiba/terminl/releases/latest/download/install.s
 
 Uninstall: `curl -fsSL https://github.com/khatiba/terminl/releases/latest/download/install.sh | sh -s -- --uninstall`
 
+> [!NOTE]
+> Terminl.app keeps the stock bundle identifier (`com.apple.Terminal`), so it shares preferences with Terminal.app. Your profiles, themes, fonts and settings carry over, and any changes you make in one show up in the other.
+
 ## Requirements to Build
 
 - macOS on Apple Silicon
@@ -59,6 +62,3 @@ make clean      # delete build output
 `install` copies `/System/Applications/Utilities/Terminal.app`, puts `terminl.dylib` in `Contents/Frameworks`, adds `DYLD_INSERT_LIBRARIES` to the app's `LSEnvironment`, and ad-hoc re-signs the bundle.
 
 Once macOS updates Terminal, run `make install` again so the copy picks up the new version.
-
-> [!NOTE]
-> Terminl.app keeps the stock bundle identifier (`com.apple.Terminal`), so it shares preferences with Terminal.app. Your profiles, themes, fonts and settings carry over, and any changes you make in one show up in the other.

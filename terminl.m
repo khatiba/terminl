@@ -185,9 +185,11 @@ __attribute__((constructor)) static void init(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
         NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
         for (NSNotificationName n in @[NSWindowDidBecomeKeyNotification, NSWindowDidResizeNotification, NSWindowDidBecomeMainNotification]) {
-            [nc addObserverForName:n object:nil queue:nil usingBlock:^(NSNotification *note) { fixWindow(note.object); }];
+            [nc addObserverForName:n object:nil queue:nil usingBlock:^(NSNotification *note) {
+                fixWindow(note.object);
+            }];
         }
-        // TODO: see if we can avoid the polling
-        [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *t) { fixAll(); }];
+        // turn this off until edge case needs it
+        // [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *t) { fixAll(); }];
     });
 }

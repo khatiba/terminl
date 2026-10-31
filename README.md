@@ -1,6 +1,6 @@
 # Terminl
 
-Dear Apple, since Tahoe, Terminal.app is near perfect, there are just a couple annoyances that would make it just right. The code to fix them is tiny and the terminal interface is quickly becoming the new web browser of our age and Terminal.app has the potential to dominate.
+Dear Apple, since Tahoe, Terminal.app is near perfect, there are just a couple annoyances that would make it just right. The code to fix them is tiny and the terminal interface is quickly becoming the new web browser of our age and Terminal.app has the potential to dominate. Can we at least have the window sizing and resizing fixes when opening a split, search or tabs?
 
 ## Stock
 
@@ -28,6 +28,9 @@ Vertical space is already scarce so just put the tabs in the titlebar. It's stil
 - Zoom (green button / double-click the titlebar) fills the whole visible screen, not a size rounded down to whole character cells which leaves a gap on the right and bottom.
 
 This small dylib patches Terminal.app but must make a copy, swizzle and re-sign, but other than that, it's stock Terminal.
+
+> [!WARNING]
+> This will look bad with transparent background, best to use solid color background.
 
 ## Install
 

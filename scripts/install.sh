@@ -1,12 +1,12 @@
 #!/bin/sh
-# Install Terminl __TAG__: copy the system Terminal to ~/Applications, embed terminl.dylib, ad-hoc re-sign.
+# Install Terminl __TAG__: copy the system Terminal to /Applications, embed terminl.dylib, ad-hoc re-sign.
 #   curl -fsSL https://github.com/__REPO__/releases/latest/download/install.sh | sh
 #   ... | sh -s -- --uninstall
 # TERMINL_DYLIB=/path/to/terminl.dylib uses a local build instead of downloading the release.
 set -e
 REPO="__REPO__"
 TAG="__TAG__"
-APP="$HOME/Applications/Terminl.app"
+APP="/Applications/Terminl.app"
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
 if [ "$1" = "--uninstall" ]; then
@@ -24,7 +24,6 @@ else
     curl -fsSL -o "$tmp/terminl.dylib" "https://github.com/$REPO/releases/download/$TAG/terminl.dylib"
 fi
 
-mkdir -p "$HOME/Applications"
 rm -rf "$APP"
 cp -R /System/Applications/Utilities/Terminal.app "$APP"
 mkdir -p "$APP/Contents/Frameworks"

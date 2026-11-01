@@ -1,6 +1,9 @@
 # Terminl
 
-Dear Apple, since Tahoe, Terminal.app is near perfect, there are just a couple annoyances that would make it just right. The code to fix them is tiny and the terminal interface is quickly becoming the new web browser of our age and Terminal.app has the potential to dominate. Can we at least have the window sizing and resizing fixes when opening a split, search or tabs?
+This is _not_ yet another terminal, it's a swizzled version of the stock macOS Terminal with a few QOL improvements that would make it good enough to be the default goto (IMO). I like my setup to be as simple and default as possible to lower friction when sitting down to work.
+
+Dear Apple, since Tahoe, Terminal is near perfect, there are just a couple annoyances that would make it just right. The terminal interface is quickly becoming the new web browser of our time and the macOS stock Terminal has the potential to dominate. The code is tiny, can we at least have the window sizing and resizing fixes when opening a split, search or tabs? That would be enough, the rest is just aesthetics.
+
 
 ## Stock
 

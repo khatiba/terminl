@@ -175,11 +175,37 @@ static void stableUpdateGeometry(NSWindowController *self, SEL _cmd) {
     }
 }
 
+// Terminal also resizes the window to keep its row count when the find bar toggles or changes height.
+// Those geometry updates happen inside these calls, so the frame is pinned for just their duration.
+static IMP origSetFindBarVisible, origFindBarDidChangeHeight;
+
+static void withPinnedFrame(NSWindow *w, void (^body)(void)) {
+    if (w) objc_setAssociatedObject(w, kPinnedFrameKey, [NSValue valueWithRect:w.frame], OBJC_ASSOCIATION_RETAIN);
+    body();
+    if (w) objc_setAssociatedObject(w, kPinnedFrameKey, nil, OBJC_ASSOCIATION_RETAIN);
+}
+
+static void stableSetFindBarVisible(NSView *self, SEL _cmd, BOOL visible) {
+    withPinnedFrame(self.window, ^{ ((void (*)(id, SEL, BOOL))origSetFindBarVisible)(self, _cmd, visible); });
+}
+
+static void stableFindBarDidChangeHeight(NSView *self, SEL _cmd) {
+    withPinnedFrame(self.window, ^{ ((void (*)(id, SEL))origFindBarDidChangeHeight)(self, _cmd); });
+}
+
 __attribute__((constructor)) static void init(void) {
     Method geometry = class_getInstanceMethod(NSClassFromString(@"TTWindowController"), NSSelectorFromString(@"updateWindowGeometry"));
     if (geometry) origUpdateGeometry = method_setImplementation(geometry, (IMP)stableUpdateGeometry);
+
+    Method findVisible = class_getInstanceMethod(NSClassFromString(@"TTPane"), NSSelectorFromString(@"setFindBarVisible:"));
+    if (findVisible) origSetFindBarVisible = method_setImplementation(findVisible, (IMP)stableSetFindBarVisible);
+
+    Method findHeight = class_getInstanceMethod(NSClassFromString(@"TTPane"), NSSelectorFromString(@"findBarViewDidChangeHeight"));
+    if (findHeight) origFindBarDidChangeHeight = method_setImplementation(findHeight, (IMP)stableFindBarDidChangeHeight);
+
     Method zoom = class_getInstanceMethod(NSClassFromString(@"TTWindowController"), @selector(windowWillUseStandardFrame:defaultFrame:));
     if (zoom) method_setImplementation(zoom, (IMP)fullStandardFrame);
+
     Method add = class_getInstanceMethod([NSWindow class], @selector(addTitlebarAccessoryViewController:));
     origAddAccessory = method_setImplementation(add, (IMP)tabAddAccessory);
     dispatch_async(dispatch_get_main_queue(), ^{

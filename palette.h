@@ -293,8 +293,8 @@ static NSInteger paletteFuzzy(NSString *q, NSString *s) {
 }
 
 - (BOOL)control:(NSControl *)control textView:(NSTextView *)textView doCommandBySelector:(SEL)command {
-    if (command == @selector(moveDown:)) [self moveSelection:1];
-    else if (command == @selector(moveUp:)) [self moveSelection:-1];
+    if (command == @selector(moveDown:) || command == @selector(insertTab:)) [self moveSelection:1];
+    else if (command == @selector(moveUp:) || command == @selector(insertBacktab:)) [self moveSelection:-1];
     else if (command == @selector(insertNewline:)) [self runSelected];
     else if (command == @selector(cancelOperation:)) [self dismissRestoringKey:YES];
     else return NO;

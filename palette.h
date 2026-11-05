@@ -5,7 +5,7 @@ static const CGFloat kPaletteWidth = 560, kPaletteFieldHeight = 46, kPaletteRowH
 static const NSInteger kPaletteMaxRows = 10;
 
 @interface TerminlPaletteItem : NSObject
-@property (strong) NSMenuItem *menuItem;
+@property (copy) void (^action)(void);
 @property (copy) NSString *title, *path, *shortcut;
 @property NSInteger score;
 @end
@@ -54,13 +54,29 @@ static void paletteCollect(NSMenu *menu, NSString *path, NSMutableArray<TerminlP
             paletteCollect(item.submenu, path.length ? [NSString stringWithFormat:@"%@ › %@", path, item.title] : item.title, out);
         } else if (item.isEnabled && item.action) {
             TerminlPaletteItem *p = [TerminlPaletteItem new];
-            p.menuItem = item;
+            p.action = ^{
+                NSInteger index = [item.menu indexOfItem:item];
+                if (index >= 0) [item.menu performActionForItemAtIndex:index];
+            };
             p.title = item.title;
             p.path = path;
             p.shortcut = paletteShortcut(item);
             [out addObject:p];
         }
     }
+}
+
+// Actions on the key window's working directory, which Terminal keeps in representedURL.
+static NSArray<TerminlPaletteItem *> *paletteCwdItems(NSWindow *w) {
+    NSURL *url = w.representedURL;
+    if (!url.isFileURL) return @[];
+    NSString *path = url.path;
+    TerminlPaletteItem *finder = [TerminlPaletteItem new];
+    finder.title = @"Open in Finder";
+    finder.path = path.stringByAbbreviatingWithTildeInPath;
+    finder.shortcut = @"";
+    finder.action = ^{ [NSWorkspace.sharedWorkspace selectFile:nil inFileViewerRootedAtPath:path]; };
+    return @[finder];
 }
 
 // Subsequence match rewarding runs and word starts; NSNotFound when q is not a subsequence of s.
@@ -191,7 +207,7 @@ static NSInteger paletteFuzzy(NSString *q, NSString *s) {
 - (void)toggle {
     if (_panel.isVisible) { [self dismissRestoringKey:YES]; return; }
     NSWindow *anchor = NSApp.keyWindow ?: NSApp.mainWindow;
-    NSMutableArray *items = [NSMutableArray array];
+    NSMutableArray *items = [paletteCwdItems(NSApp.keyWindow) mutableCopy];
     paletteCollect(NSApp.mainMenu, @"", items);
     _allItems = items;
     _previousKey = NSApp.keyWindow;
@@ -262,12 +278,8 @@ static NSInteger paletteFuzzy(NSString *q, NSString *s) {
 
 - (void)run:(TerminlPaletteItem *)item {
     [self dismissRestoringKey:YES];
-    NSMenuItem *menuItem = item.menuItem;
     // Next turn, so the action's responder chain starts at the restored terminal window, not the search field.
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSInteger index = [menuItem.menu indexOfItem:menuItem];
-        if (index >= 0) [menuItem.menu performActionForItemAtIndex:index];
-    });
+    dispatch_async(dispatch_get_main_queue(), item.action);
 }
 
 - (void)runSelected {

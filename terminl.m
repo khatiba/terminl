@@ -1,5 +1,6 @@
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
+#import "palette.h"
 
 static NSView *findTTView(NSView *v) {
     if ([NSStringFromClass([v class]) isEqualToString:@"TTView"]) return v;
@@ -209,6 +210,7 @@ __attribute__((constructor)) static void init(void) {
     Method add = class_getInstanceMethod([NSWindow class], @selector(addTitlebarAccessoryViewController:));
     origAddAccessory = method_setImplementation(add, (IMP)tabAddAccessory);
     dispatch_async(dispatch_get_main_queue(), ^{
+        installPalette();
         NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
         for (NSNotificationName n in @[NSWindowDidBecomeKeyNotification, NSWindowDidResizeNotification, NSWindowDidBecomeMainNotification]) {
             [nc addObserverForName:n object:nil queue:nil usingBlock:^(NSNotification *note) {

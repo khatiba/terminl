@@ -17,6 +17,8 @@ Dear Apple, since Tahoe, Terminal is near perfect, there are just a couple annoy
 
 <img src="https://akhatib.s3.us-west-2.amazonaws.com/assets/patched-terminal.png" alt="Patched Terminal">
 
+<img src="https://akhatib.s3.us-west-2.amazonaws.com/assets/command-palette.png" alt="Command Palette">
+
 ### 1. Chromeless titlebar
 
 The stock titlebar color is ugly and it's trivial now to make titlebar transparent so the window background shows through seamlessly.
@@ -29,6 +31,10 @@ Vertical space is already scarce so just put the tabs in the titlebar. It's stil
 
 - Normally Terminal resizes the window when the tab bar appears or disappears and it's jarring, especially when the window is maximized.
 - Zoom (green button / double-click the titlebar) fills the whole visible screen, not a size rounded down to whole character cells which leaves a gap on the right and bottom.
+
+### 4. Command palette
+
+Press `Cmd+Shift+P` to fuzzy search the enabled menu items and run one without leaving the keyboard. Each result shows its menu path and shortcut, so it's also a handy way to learn the shortcuts.
 
 This small dylib patches Terminal.app but must make a copy, swizzle and re-sign, but other than that, it's stock Terminal.
 
@@ -56,7 +62,7 @@ curl -fsSL https://github.com/khatiba/terminl/releases/latest/download/install.s
 - macOS on Apple Silicon
 - clang (`xcode-select --install`)
 
-All the code is in `terminl.m`
+All the code is in `terminl.m` and `palette.h`
 
 Note: a macOS update can break this since it uses private AppKit view classes and Terminal internals (`TTView`, `TTWindow`, `TTWindowController`, `NSTabBar`, etc.)
 

@@ -14,7 +14,7 @@ all: build
 
 build: terminl.dylib
 
-terminl.dylib: terminl.m
+terminl.dylib: terminl.m palette.h
 	$(CC) $(CFLAGS) -o $@ $<
 
 # Copy the system Terminal to ~/Applications, embed the dylib, inject it via LSEnvironment, ad-hoc re-sign.

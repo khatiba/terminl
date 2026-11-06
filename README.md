@@ -36,6 +36,14 @@ Vertical space is already scarce so just put the tabs in the titlebar. It's stil
 
 Press `Cmd+Shift+P` to fuzzy search the enabled menu items and run one without leaving the keyboard. Each result shows its menu path and shortcut, so it's also a handy way to learn the shortcuts.
 
+### 5. Mac-style line editing
+
+- `Cmd+←` / `Cmd+→` jump to the start / end of the line
+- `Opt+←` / `Opt+→` move by word
+- `Cmd+Backspace` clears the line
+
+These send emacs-style keys (`^A`, `^E`, `ESC b/f`, `^E^U`) to the shell, so they don't work in zsh's vi mode.
+
 This small dylib patches Terminal.app but must make a copy, swizzle and re-sign, but other than that, it's stock Terminal.
 
 > [!WARNING]
@@ -62,7 +70,7 @@ curl -fsSL https://github.com/khatiba/terminl/releases/latest/download/install.s
 - macOS on Apple Silicon
 - clang (`xcode-select --install`)
 
-All the code is in `terminl.m` and `palette.h`
+All the code is in `terminl.m`
 
 Note: a macOS update can break this since it uses private AppKit view classes and Terminal internals (`TTView`, `TTWindow`, `TTWindowController`, `NSTabBar`, etc.)
 
@@ -71,6 +79,7 @@ Note: a macOS update can break this since it uses private AppKit view classes an
 
 ```sh
 make build      # build terminl.dylib
+make debug      # build terminl-debug.dylib (logs to stderr with TERMINL_DUMP=1)
 make install    # build, then create ~/Applications/Terminl.app with the dylib injected
 make uninstall  # remove ~/Applications/Terminl.app
 make clean      # delete build output

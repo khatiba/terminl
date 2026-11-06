@@ -8,14 +8,20 @@ DYLIB      = $(APP)/Contents/Frameworks/terminl.dylib
 PLIST      = $(APP)/Contents/Info.plist
 LSREGISTER = /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
-.PHONY: all build install uninstall clean
+.PHONY: all build debug install uninstall clean
 
 all: build
 
 build: terminl.dylib
 
-terminl.dylib: terminl.m palette.h
+debug: terminl-debug.dylib
+
+terminl.dylib: terminl.m
 	$(CC) $(CFLAGS) -o $@ $<
+
+# Same source with stderr logging, enabled at runtime by TERMINL_DUMP=1.
+terminl-debug.dylib: terminl.m
+	$(CC) $(CFLAGS) -DTERMINL_DEBUG -o $@ $<
 
 # Copy the system Terminal to ~/Applications, embed the dylib, inject it via LSEnvironment, ad-hoc re-sign.
 install: terminl.dylib
@@ -38,4 +44,4 @@ uninstall:
 	@echo "removed $(APP)"
 
 clean:
-	rm -f terminl.dylib
+	rm -f terminl.dylib terminl-debug.dylib

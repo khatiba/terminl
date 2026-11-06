@@ -597,7 +597,44 @@ static void stableFindBarDidChangeHeight(NSView *self, SEL _cmd) {
     withPinnedFrame(self.window, ^{ ((void (*)(id, SEL))origFindBarDidChangeHeight)(self, _cmd); });
 }
 
+// OSC 52 (ESC ] 52 ; <selection> ; <base64> BEL/ST): lets remote programs (vim, tmux over ssh) set the clipboard.
+// Terminal's parser already hands every OSC to performOperatingSystemCommand with the number in _params[0] and
+// the text after it in _operatingSystemCommand; it just ignores 52. Read requests ("?") are refused on purpose.
+static const NSUInteger kOSC52MaxBytes = 1 << 20;
+static IMP origPerformOSC;
+static Ivar oscParamsIvar, oscStringIvar;
+
+static void performOSC(id self, SEL _cmd) {
+    const int *params = (const int *)((char *)(__bridge void *)self + ivar_getOffset(oscParamsIvar));
+    NSString *s = object_getIvar(self, oscStringIvar);
+    if (params[0] == 52 && s) {
+        NSRange semi = [s rangeOfString:@";"];
+        NSString *payload = semi.location == NSNotFound ? nil : [s substringFromIndex:NSMaxRange(semi)];
+        if (payload.length && ![payload isEqualToString:@"?"] && payload.length <= kOSC52MaxBytes * 4 / 3 + 4) {
+            NSData *data = [[NSData alloc] initWithBase64EncodedString:payload options:NSDataBase64DecodingIgnoreUnknownCharacters];
+            NSString *text = data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+            if (text.length) {
+                NSPasteboard *pb = NSPasteboard.generalPasteboard;
+                [pb clearContents];
+                [pb setString:text forType:NSPasteboardTypeString];
+            }
+        }
+    }
+    ((void (*)(id, SEL))origPerformOSC)(self, _cmd);
+}
+
+static void installOSC52(void) {
+    Class c = NSClassFromString(@"TTVT100Emulator");
+    oscParamsIvar = class_getInstanceVariable(c, "_params");
+    oscStringIvar = class_getInstanceVariable(c, "_operatingSystemCommand");
+    Method m = class_getInstanceMethod(c, NSSelectorFromString(@"performOperatingSystemCommand"));
+    if (m && oscParamsIvar && oscStringIvar && !strcmp(ivar_getTypeEncoding(oscParamsIvar), "[32i]")) {
+        origPerformOSC = method_setImplementation(m, (IMP)performOSC);
+    }
+}
+
 __attribute__((constructor)) static void init(void) {
+    installOSC52();
     Method geometry = class_getInstanceMethod(NSClassFromString(@"TTWindowController"), NSSelectorFromString(@"updateWindowGeometry"));
     if (geometry) origUpdateGeometry = method_setImplementation(geometry, (IMP)stableUpdateGeometry);
 

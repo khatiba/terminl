@@ -44,6 +44,10 @@ Press `Cmd+Shift+P` to fuzzy search the enabled menu items and run one without l
 
 These send emacs-style keys (`^A`, `^E`, `ESC b/f`, `^E^U`) to the shell, so they don't work in zsh's vi mode.
 
+### 6. OSC 52 clipboard
+
+Programs can copy to your Mac clipboard with the OSC 52 escape sequence, including vim and tmux over ssh. Stock Terminal ignores it. Programs can only write to the clipboard, not read it, and copies over 1 MB are dropped. In tmux, turn it on with `set -g set-clipboard on`.
+
 This small dylib patches Terminal.app but must make a copy, swizzle and re-sign, but other than that, it's stock Terminal.
 
 > [!WARNING]

@@ -48,6 +48,17 @@ These send emacs-style keys (`^A`, `^E`, `ESC b/f`, `^E^U`) to the shell, so the
 
 Programs can copy to your Mac clipboard with the OSC 52 escape sequence, including vim and tmux over ssh. Stock Terminal ignores it. Programs can only write to the clipboard, not read it, and copies over 1 MB are dropped. In tmux, turn it on with `set -g set-clipboard on`.
 
+### 7. OSC 9 / 777 notifications
+
+Programs can post a macOS notification with an escape sequence, including over ssh:
+
+```sh
+long-build; printf '\e]9;build done\a'            # title is the tab title
+printf '\e]777;notify;Deploy;prod finished\a'      # explicit title and body
+```
+
+A notification only appears when that tab isn't the one in front. Clicking it brings the tab forward. Terminal asks for notification permission on first launch. In tmux, wrap the sequence in tmux passthrough (`set -g allow-passthrough on`).
+
 This small dylib patches Terminal.app but must make a copy, swizzle and re-sign, but other than that, it's stock Terminal.
 
 > [!WARNING]

@@ -1,5 +1,6 @@
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
+#import <UserNotifications/UserNotifications.h>
 
 // Command palette (Cmd+Shift+P): fuzzy search over every enabled item in the main menu.
 
@@ -387,7 +388,7 @@ static void installKeys(void) {
     }];
 }
 
-// Debug build (make debug): logs to stderr when TERMINL_DUMP is set.
+// Debug build (-DTERMINL_DEBUG): logs to stderr when TERMINL_DUMP is set.
 #ifdef TERMINL_DEBUG
 #define DUMP(...) do { if (getenv("TERMINL_DUMP")) fprintf(stderr, __VA_ARGS__); } while (0)
 #else
@@ -431,6 +432,9 @@ static NSColor *terminalBackground(NSView *tt) {
     return [c isKindOfClass:[NSColor class]] ? c : nil;
 }
 
+
+// ---- Titlebar tabs
+
 static NSView *findDesc(NSView *v, NSString *cls) {
     if ([NSStringFromClass([v class]) isEqualToString:cls]) return v;
     for (NSView *s in v.subviews) { NSView *r = findDesc(s, cls); if (r) return r; }
@@ -463,7 +467,7 @@ static BOOL constraintsApplied(NSWindow *w, NSView *clip) {
     return YES;
 }
 
-// empty toolbar makes title row taller (~38pt) so the tab bar is not glued to the top edge.
+// An empty toolbar makes the title row taller (~38pt) so the tab bar is not glued to the top edge.
 static void ensureToolbar(NSWindow *w) {
     if (w.toolbar) return;
     NSToolbar *t = [[NSToolbar alloc] initWithIdentifier:@"terminl"];
@@ -472,20 +476,18 @@ static void ensureToolbar(NSWindow *w) {
     w.toolbarStyle = NSWindowToolbarStyleUnifiedCompact;
 }
 
-// AppKit rebuilds the tab bar on main-window changes, tab drags and appearance changes.
+// Idempotent: AppKit rebuilds the tab bar on main-window changes, tab drags and appearance changes.
 static void setupTabBar(NSWindow *w) {
     ensureToolbar(w);
     NSView *tb = titlebarView(w);
     NSView *tabBar = tb ? findDesc(tb, @"NSTabBar") : nil;
     NSView *doc = tb ? findDesc(tb, @"NSThemeDocumentButton") : nil;
-
     if (!tabBar) {
         if (w.titleVisibility != NSWindowTitleVisible) w.titleVisibility = NSWindowTitleVisible;
         if (doc.hidden) doc.hidden = NO;
         objc_setAssociatedObject(w, kTabConstraintsKey, nil, OBJC_ASSOCIATION_RETAIN);
         return;
     }
-
     if (w.titleVisibility != NSWindowTitleHidden) w.titleVisibility = NSWindowTitleHidden;
     if (doc && !doc.hidden) doc.hidden = YES;  // proxy icon would sit under the first tab
     NSView *clip = findSuper(tabBar, @"NSTitlebarAccessoryContainerView") ?: findSuper(tabBar, @"NSTitlebarAccessoryClipView");
@@ -493,12 +495,7 @@ static void setupTabBar(NSWindow *w) {
     if (!clip || !accessory || constraintsApplied(w, clip)) return;
     NSView *container = findDesc(tb, @"NSToolbarView") ?: tb;
     NSView *newTab = findDesc(tabBar, @"NSTabBarNewTabButton");
-
-    if (newTab) {
-        // don't stretch
-        NSRect f = tabBar.frame; f.size.height = newTab.frame.size.width; tabBar.frame = f;
-    }
-                                                                                                         //
+    if (newTab) { NSRect f = tabBar.frame; f.size.height = newTab.frame.size.width; tabBar.frame = f; }  // don't stretch
     // AppKit keeps the tab bar at a fixed offset inside the accessory view; shift the clip so the bar is centred on the title row.
     CGFloat top = NSMidY(tabBar.frame) - NSHeight(container.bounds) / 2;
     [NSLayoutConstraint deactivateConstraints:objc_getAssociatedObject(w, kTabConstraintsKey) ?: @[]];
@@ -543,9 +540,7 @@ static void fixWindow(NSWindow *w) {
 }
 
 static void fixAll(void) {
-    for (NSWindow *w in NSApp.windows) {
-        fixWindow(w);
-    }
+    for (NSWindow *w in NSApp.windows) fixWindow(w);
 }
 
 // Zoom to the full visible screen instead of a size rounded to whole character cells.
@@ -574,9 +569,7 @@ static void stableUpdateGeometry(NSWindowController *self, SEL _cmd) {
     }
     ((void (*)(id, SEL))origUpdateGeometry)(self, _cmd);
     NSValue *pinned = objc_getAssociatedObject(w, kPinnedFrameKey);
-    if (pinned && !NSEqualRects(w.frame, pinned.rectValue)) {
-        [w setFrame:pinned.rectValue display:YES];
-    }
+    if (pinned && !NSEqualRects(w.frame, pinned.rectValue)) [w setFrame:pinned.rectValue display:YES];
 }
 
 // Terminal also resizes the window to keep its row count when the find bar toggles or changes height.
@@ -604,6 +597,103 @@ static const NSUInteger kOSC52MaxBytes = 1 << 20;
 static IMP origPerformOSC;
 static Ivar oscParamsIvar, oscStringIvar;
 
+// OSC 9 (ESC ] 9 ; <text> BEL) and OSC 777 (ESC ] 777 ; notify ; <title> ; <body> BEL): desktop notifications,
+// posted only when the emitting tab isn't the one in front. Clicking one brings that tab forward.
+static const NSUInteger kNotifyMaxChars = 512;
+static const NSTimeInterval kNotifyMinInterval = 1.0;
+static Ivar oscControllerIvar;
+static NSMapTable<NSString *, id> *notifyTabs;  // notification id -> TTTabController (weak)
+static const void *kLastNotifyKey = &kLastNotifyKey;
+
+@interface TerminlNotifier : NSObject <UNUserNotificationCenterDelegate>
+@end
+@implementation TerminlNotifier
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center willPresentNotification:(UNNotification *)notification
+         withCompletionHandler:(void (^)(UNNotificationPresentationOptions))completion {
+    completion(UNNotificationPresentationOptionBanner | UNNotificationPresentationOptionList | UNNotificationPresentationOptionSound);
+}
+- (void)userNotificationCenter:(UNUserNotificationCenter *)center didReceiveNotificationResponse:(UNNotificationResponse *)response
+         withCompletionHandler:(void (^)(void))completion {
+    id tab = [notifyTabs objectForKey:response.notification.request.identifier];
+    NSWindowController *wc = [tab respondsToSelector:@selector(windowController)] ? [tab valueForKey:@"windowController"] : nil;
+    if (wc) {
+        [NSApp activateIgnoringOtherApps:YES];
+        if ([wc respondsToSelector:NSSelectorFromString(@"setSelectedTabController:")]) [wc setValue:tab forKey:@"selectedTabController"];
+        [wc.window makeKeyAndOrderFront:nil];
+    }
+    completion();
+}
+@end
+
+static BOOL tabIsFrontmost(id tab) {
+    NSWindowController *wc = [tab respondsToSelector:@selector(windowController)] ? [tab valueForKey:@"windowController"] : nil;
+    if (!wc || !NSApp.isActive || !wc.window.isKeyWindow) return NO;
+    return ![wc respondsToSelector:NSSelectorFromString(@"selectedTabController")] || [wc valueForKey:@"selectedTabController"] == tab;
+}
+
+static void postNotification(id tab, NSString *title, NSString *body) {
+    if (!tab || tabIsFrontmost(tab)) return;
+    NSDate *last = objc_getAssociatedObject(tab, kLastNotifyKey);
+    if (last && -last.timeIntervalSinceNow < kNotifyMinInterval) return;
+    objc_setAssociatedObject(tab, kLastNotifyKey, [NSDate date], OBJC_ASSOCIATION_RETAIN);
+    if (!title.length) title = [tab respondsToSelector:NSSelectorFromString(@"tabTitle")] ? [tab valueForKey:@"tabTitle"] : @"Terminal";
+    if (body.length > kNotifyMaxChars) body = [[body substringToIndex:kNotifyMaxChars] stringByAppendingString:@"…"];
+    if (title.length > kNotifyMaxChars) title = [title substringToIndex:kNotifyMaxChars];
+
+    static TerminlNotifier *delegate;
+    UNUserNotificationCenter *center = UNUserNotificationCenter.currentNotificationCenter;
+    if (!delegate) { delegate = [TerminlNotifier new]; center.delegate = delegate; notifyTabs = [NSMapTable strongToWeakObjectsMapTable]; }
+    UNMutableNotificationContent *content = [UNMutableNotificationContent new];
+    content.title = title;
+    content.body = body ?: @"";
+    content.sound = UNNotificationSound.defaultSound;
+    NSString *ident = NSUUID.UUID.UUIDString;
+    [notifyTabs setObject:tab forKey:ident];
+    [center requestAuthorizationWithOptions:UNAuthorizationOptionAlert | UNAuthorizationOptionSound completionHandler:^(BOOL granted, NSError *error) {
+        if (!granted) {
+#ifdef TERMINL_DEBUG
+            fprintf(stderr, "notifications not authorized: %s\n", error.description.UTF8String);
+#endif
+            return;
+        }
+        [center addNotificationRequest:[UNNotificationRequest requestWithIdentifier:ident content:content trigger:nil] withCompletionHandler:^(NSError *e) {
+#ifdef TERMINL_DEBUG
+            if (e) fprintf(stderr, "notification failed: %s\n", e.description.UTF8String);
+#endif
+        }];
+    }];
+}
+
+// Ask while Terminal is frontmost at launch: macOS silently denies a first request made from the background.
+static void requestNotifyAuthorization(void) {
+    UNUserNotificationCenter *center = UNUserNotificationCenter.currentNotificationCenter;
+    [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *settings) {
+#ifdef TERMINL_DEBUG
+        fprintf(stderr, "notification authorization status %ld\n", (long)settings.authorizationStatus);
+#endif
+        if (settings.authorizationStatus == UNAuthorizationStatusNotDetermined)
+            [center requestAuthorizationWithOptions:UNAuthorizationOptionAlert | UNAuthorizationOptionSound completionHandler:^(BOOL granted, NSError *e) {}];
+    }];
+}
+
+static void handleNotifyOSC(id emulator, int number, NSString *s) {
+    NSString *title = nil, *body = nil;
+    if (number == 9) {
+        // ConEmu/Windows Terminal reuse OSC 9 for numbered subcommands (9;4 is progress); those aren't notifications.
+        NSScanner *sc = [NSScanner scannerWithString:s];
+        if ([sc scanInt:NULL] && [sc scanString:@";" intoString:NULL]) return;
+        body = s;
+    } else {
+        NSArray<NSString *> *parts = [s componentsSeparatedByString:@";"];
+        if (parts.count < 2 || ![parts[0] isEqualToString:@"notify"]) return;
+        title = parts[1];
+        body = parts.count > 2 ? [[parts subarrayWithRange:NSMakeRange(2, parts.count - 2)] componentsJoinedByString:@";"] : @"";
+    }
+    if (!title.length && !body.length) return;
+    id tab = oscControllerIvar ? object_getIvar(emulator, oscControllerIvar) : nil;
+    dispatch_async(dispatch_get_main_queue(), ^{ postNotification(tab, title, body); });
+}
+
 static void performOSC(id self, SEL _cmd) {
     const int *params = (const int *)((char *)(__bridge void *)self + ivar_getOffset(oscParamsIvar));
     NSString *s = object_getIvar(self, oscStringIvar);
@@ -620,33 +710,30 @@ static void performOSC(id self, SEL _cmd) {
             }
         }
     }
+    if ((params[0] == 9 || params[0] == 777) && s.length) handleNotifyOSC(self, params[0], [s copy]);
     ((void (*)(id, SEL))origPerformOSC)(self, _cmd);
 }
 
-static void installOSC52(void) {
+static void installOSC(void) {
     Class c = NSClassFromString(@"TTVT100Emulator");
     oscParamsIvar = class_getInstanceVariable(c, "_params");
     oscStringIvar = class_getInstanceVariable(c, "_operatingSystemCommand");
+    oscControllerIvar = class_getInstanceVariable(c, "_controller");
     Method m = class_getInstanceMethod(c, NSSelectorFromString(@"performOperatingSystemCommand"));
-    if (m && oscParamsIvar && oscStringIvar && !strcmp(ivar_getTypeEncoding(oscParamsIvar), "[32i]")) {
+    if (m && oscParamsIvar && oscStringIvar && !strcmp(ivar_getTypeEncoding(oscParamsIvar), "[32i]"))
         origPerformOSC = method_setImplementation(m, (IMP)performOSC);
-    }
 }
 
 __attribute__((constructor)) static void init(void) {
-    installOSC52();
+    installOSC();
     Method geometry = class_getInstanceMethod(NSClassFromString(@"TTWindowController"), NSSelectorFromString(@"updateWindowGeometry"));
     if (geometry) origUpdateGeometry = method_setImplementation(geometry, (IMP)stableUpdateGeometry);
-
     Method findVisible = class_getInstanceMethod(NSClassFromString(@"TTPane"), NSSelectorFromString(@"setFindBarVisible:"));
     if (findVisible) origSetFindBarVisible = method_setImplementation(findVisible, (IMP)stableSetFindBarVisible);
-
     Method findHeight = class_getInstanceMethod(NSClassFromString(@"TTPane"), NSSelectorFromString(@"findBarViewDidChangeHeight"));
     if (findHeight) origFindBarDidChangeHeight = method_setImplementation(findHeight, (IMP)stableFindBarDidChangeHeight);
-
     Method zoom = class_getInstanceMethod(NSClassFromString(@"TTWindowController"), @selector(windowWillUseStandardFrame:defaultFrame:));
     if (zoom) method_setImplementation(zoom, (IMP)fullStandardFrame);
-
     Method add = class_getInstanceMethod([NSWindow class], @selector(addTitlebarAccessoryViewController:));
     origAddAccessory = method_setImplementation(add, (IMP)tabAddAccessory);
 #ifdef TERMINL_DEBUG
@@ -654,14 +741,11 @@ __attribute__((constructor)) static void init(void) {
 #endif
     dispatch_async(dispatch_get_main_queue(), ^{
         installPalette();
+        requestNotifyAuthorization();
         installKeys();
         NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
-        for (NSNotificationName n in @[NSWindowDidBecomeKeyNotification, NSWindowDidResizeNotification, NSWindowDidBecomeMainNotification]) {
-            [nc addObserverForName:n object:nil queue:nil usingBlock:^(NSNotification *note) {
-                fixWindow(note.object);
-            }];
-        }
-        // turn this off until edge case needs it
+        for (NSNotificationName n in @[NSWindowDidBecomeKeyNotification, NSWindowDidResizeNotification, NSWindowDidBecomeMainNotification])
+            [nc addObserverForName:n object:nil queue:nil usingBlock:^(NSNotification *note) { fixWindow(note.object); }];
         // [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *t) { fixAll(); }];
 #ifdef TERMINL_DEBUG
         if (getenv("TERMINL_DUMP")) {

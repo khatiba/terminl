@@ -1,6 +1,6 @@
 CC      = clang
 ARCH   ?= arm64e
-CFLAGS  = -arch $(ARCH) -dynamiclib -fobjc-arc -framework Cocoa
+CFLAGS  = -arch $(ARCH) -dynamiclib -fobjc-arc -framework Cocoa -framework UserNotifications
 
 SRC_APP    = /System/Applications/Utilities/Terminal.app
 APP        = $(HOME)/Applications/Terminl.app
